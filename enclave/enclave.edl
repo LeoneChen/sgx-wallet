@@ -22,6 +22,7 @@ enclave {
     // includes
     include "wallet.h"
 
+    from "SGXSanRTEnclave.edl" import *;
 
     // define ECALLs
     trusted {
