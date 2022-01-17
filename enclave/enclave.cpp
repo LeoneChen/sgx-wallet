@@ -26,6 +26,8 @@
 #include "sgx_tseal.h"
 #include "sealing/sealing.h"
 
+#define SGXSAN_SENSITIVE __attribute__((annotate("SGXSAN_SENSITIVE")))
+
 /**
  * @brief      Creates a new wallet with the provided master-password.
  *
@@ -64,7 +66,7 @@ int ecall_create_wallet(const char* master_password) {
 
 
 	// 3. create new wallet
-	wallet_t* wallet = (wallet_t*)malloc(sizeof(wallet_t));
+	SGXSAN_SENSITIVE wallet_t* wallet = (wallet_t*)malloc(sizeof(wallet_t));
 	wallet->size = 0;
 	strncpy(wallet->master_password, master_password, strlen(master_password)+1);
 	DEBUG_PRINT("[OK] New wallet successfully created.");
@@ -133,7 +135,7 @@ int ecall_show_wallet(const char* master_password, wallet_t* wallet, size_t wall
 
 	// 2. unseal loaded wallet
 	uint32_t plaintext_size = sizeof(wallet_t);
-    wallet_t* unsealed_wallet = (wallet_t*)malloc(plaintext_size);
+    SGXSAN_SENSITIVE wallet_t* unsealed_wallet = (wallet_t*)malloc(plaintext_size);
     sealing_status = unseal_wallet((sgx_sealed_data_t*)sealed_data, unsealed_wallet, plaintext_size);
     free(sealed_data);
     if (sealing_status != SGX_SUCCESS) {
@@ -207,7 +209,7 @@ int ecall_change_master_password(const char* old_password, const char* new_passw
 
 	// 3. unseal wallet
 	uint32_t plaintext_size = sizeof(wallet_t);
-    wallet_t* wallet = (wallet_t*)malloc(plaintext_size);
+    SGXSAN_SENSITIVE wallet_t* wallet = (wallet_t*)malloc(plaintext_size);
     sealing_status = unseal_wallet((sgx_sealed_data_t*)sealed_data, wallet, plaintext_size);
     free(sealed_data);
     if (sealing_status != SGX_SUCCESS) {
@@ -295,7 +297,7 @@ int ecall_add_item(const char* master_password, const item_t* item, const size_t
 
 	// 3. unseal wallet
 	uint32_t plaintext_size = sizeof(wallet_t);
-    wallet_t* wallet = (wallet_t*)malloc(plaintext_size);
+    SGXSAN_SENSITIVE wallet_t* wallet = (wallet_t*)malloc(plaintext_size);
     sealing_status = unseal_wallet((sgx_sealed_data_t*)sealed_data, wallet, plaintext_size);
     free(sealed_data);
     if (sealing_status != SGX_SUCCESS) {
@@ -408,7 +410,7 @@ int ecall_remove_item(const char* master_password, const int index) {
 
 	// 3. unseal wallet
 	uint32_t plaintext_size = sizeof(wallet_t);
-    wallet_t* wallet = (wallet_t*)malloc(plaintext_size);
+    SGXSAN_SENSITIVE wallet_t* wallet = (wallet_t*)malloc(plaintext_size);
     sealing_status = unseal_wallet((sgx_sealed_data_t*)sealed_data, wallet, plaintext_size);
     free(sealed_data);
     if (sealing_status != SGX_SUCCESS) {

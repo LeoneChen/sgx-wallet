@@ -37,8 +37,10 @@ SGX_DEBUG ?= 1
 SGX_ARCH ?= x64
 
 # I use llvm pass to instrument enclave src
-CLANGXX ?= clang++
-CLANG ?= clang
+CXX = clang++
+CC = clang
+# Customized. Set by user.
+SGXSanPath := $(abspath ../../SGXSan)
 
 ifeq ($(shell getconf LONG_BIT), 32)
 	SGX_ARCH := x86
@@ -96,7 +98,8 @@ else
 endif
 
 App_Cpp_Flags := $(App_C_Flags) -std=c++11
-App_Link_Flags := $(SGX_COMMON_CFLAGS) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread
+# SGXSan: we have patched psw, and should use patched libsgx_enclave_common.so.1 which placed in $(SGXSanPath)/PSWPatches/enclave_common_patch
+App_Link_Flags := $(SGX_COMMON_CFLAGS) -L$(SGX_LIBRARY_PATH) -L$(SGXSanPath)/output -l$(Urts_Library_Name) -lpthread -lSGXSanRTApp -Wl,-rpath=$(SGXSanPath)/output
 
 ifneq ($(SGX_MODE), HW)
 	App_Link_Flags += -lsgx_uae_service_sim
@@ -122,14 +125,17 @@ Crypto_Library_Name := sgx_tcrypto
 Enclave_Cpp_Files := enclave/enclave.cpp enclave/sealing/sealing.cpp
 Enclave_Include_Paths := -Ienclave -Iinclude -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/stlport
 
-Enclave_C_Flags := $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpie -fstack-protector $(Enclave_Include_Paths)
+Enclave_C_Flags := $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpie -fstack-protector $(Enclave_Include_Paths) -Xclang -load -Xclang $(SGXSanPath)/output/libSymbolSaverForLTOPass.so -flto
 Enclave_Cpp_Flags := $(Enclave_C_Flags) -std=c++03 -nostdinc++
-Enclave_Link_Flags := $(SGX_COMMON_CFLAGS) -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
-	-Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
+Enclave_Link_Flags := $(SGX_COMMON_CFLAGS) -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGXSanPath)/output -L$(SGX_LIBRARY_PATH) \
+	-Wl,--whole-archive -lSGXSanRTEnclave -l$(Trts_Library_Name) -Wl,--no-whole-archive \
 	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -lsgx_pthread -l$(Crypto_Library_Name) -l$(Service_Library_Name) -Wl,--end-group \
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined \
 	-Wl,-pie,-eenclave_entry -Wl,--export-dynamic  \
-	-Wl,--defsym,__ImageBase=0
+	-Wl,--defsym,__ImageBase=0 \
+	-fuse-ld=lld \
+	-Wl,-mllvm=-load=$(SGXSanPath)/output/libSensitiveLeakSanPass.so \
+	-Wl,-mllvm=-load=$(SGXSanPath)/output/libSGXSanPass.so
 	# -Wl,--version-script=Enclave/Enclave.lds
 
 Enclave_Cpp_Objects := $(Enclave_Cpp_Files:.cpp=.o)
@@ -146,13 +152,7 @@ endif
 endif
 endif
 
-######## SGXSanRT Settings ########
 
-# Customized. Set by user.
-SGXSanPath := $(abspath ../../SGXSan)
-SGXSanPass := $(SGXSanPath)/output/libSGXSanPass.so
-
-######## End of SGXSanRT Settings ########
 .PHONY: all run
 
 ifeq ($(Build_Mode), HW_RELEASE)
@@ -172,11 +172,6 @@ ifneq ($(Build_Mode), HW_RELEASE)
 	@$(CURDIR)/$(App_Name)
 	@echo "RUN  =>  $(App_Name) [$(SGX_MODE)|$(SGX_ARCH), OK]"
 endif
-######## SGXSan Objects ########
-
-.PHONY: SGXSan
-SGXSan:
-	@cd $(SGXSanPath) && export EName="enclave.signed.so" && ./build.sh
 
 ######## App Objects ########
 
@@ -184,16 +179,18 @@ app/enclave_u.c: $(SGX_EDGER8R) enclave/enclave.edl
 	@cd app && $(SGX_EDGER8R) --untrusted ../enclave/enclave.edl --search-path ../enclave --search-path $(SGX_SDK)/include --search-path $(SGXSanPath)/output
 	@echo "GEN  =>  $@"
 
+app/enclave_u.h: app/enclave_u.c
+
 app/enclave_u.o: app/enclave_u.c
 	@$(CC) $(App_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-app/%.o: app/%.cpp app/enclave_u.c
+app/%.o: app/%.cpp app/enclave_u.h
 	@$(CXX) $(App_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
 
-$(App_Name): app/enclave_u.o $(App_Cpp_Objects) SGXSan
-	@$(CXX) $(filter-out SGXSan,$^) -o $@ -L$(SGXSanPath)/output -lSGXSanRTApp $(App_Link_Flags) -Wl,-rpath=$(SGXSanPath)/output
+$(App_Name): app/enclave_u.o $(App_Cpp_Objects)
+	@$(CXX) $^ -o $@ $(App_Link_Flags)
 	@echo "LINK =>  $@"
 
 
@@ -203,16 +200,18 @@ enclave/enclave_t.c: $(SGX_EDGER8R) enclave/enclave.edl
 	@cd enclave && $(SGX_EDGER8R) --trusted ../enclave/enclave.edl --search-path ../enclave --search-path $(SGX_SDK)/include --search-path $(SGXSanPath)/output
 	@echo "GEN  =>  $@"
 
-enclave/enclave_t.o: enclave/enclave_t.c SGXSan
-	@$(CLANG) $(Enclave_C_Flags) -Xclang -load -Xclang $(SGXSanPass) -c $< -o $@
+enclave/enclave_t.h: enclave/enclave_t.c
+
+enclave/enclave_t.o: enclave/enclave_t.c
+	@$(CC) $(Enclave_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-enclave/%.o: enclave/%.cpp SGXSan
-	@$(CLANGXX) $(Enclave_Cpp_Flags) -Xclang -load -Xclang $(SGXSanPass) -c $< -o $@
+enclave/%.o: enclave/%.cpp enclave/enclave_t.h
+	@$(CXX) $(Enclave_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
 
-$(Enclave_Name): enclave/enclave_t.o $(Enclave_Cpp_Objects) SGXSan
-	@$(CXX) $(filter-out SGXSan,$^) -L$(SGXSanPath)/output -Wl,--whole-archive -lSGXSanRTEnclave -Wl,--no-whole-archive -o $@ $(Enclave_Link_Flags)
+$(Enclave_Name): enclave/enclave_t.o $(Enclave_Cpp_Objects)
+	@$(CXX) $^ -o $@ $(Enclave_Link_Flags)
 	@echo "LINK =>  $@"
 
 $(Signed_Enclave_Name): $(Enclave_Name)
@@ -224,5 +223,4 @@ $(Signed_Enclave_Name): $(Enclave_Name)
 clean:
 	@rm -f $(App_Name) $(Enclave_Name) $(Signed_Enclave_Name) $(App_Cpp_Objects) app/enclave_u.* $(Enclave_Cpp_Objects) enclave/enclave_t.*
 	@rm -rf *.seal
-	@cd $(SGXSanPath) && ./clean.sh
 	@rm -rf sgxsan_data*
