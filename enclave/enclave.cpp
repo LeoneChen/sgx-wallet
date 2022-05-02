@@ -235,8 +235,11 @@ int ecall_change_master_password(const char* old_password, const char* new_passw
 	// 6. seal wallet
 	sealed_data = (uint8_t*)malloc(sealed_size);
     sealing_status = seal_wallet(wallet, (sgx_sealed_data_t*)sealed_data, sealed_size);
+	sealing_status =  SGX_ERROR_UNEXPECTED;
     free(wallet);
     if (sealing_status != SGX_SUCCESS) {
+		// remove patch
+		free(wallet);
 			free(sealed_data);
 			return ERR_FAIL_SEAL;
     }
