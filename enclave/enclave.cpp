@@ -25,12 +25,15 @@
 
 #include "sgx_tseal.h"
 #include "sealing/sealing.h"
+#include "nyx_api.h"
+void LogEnter(const char *str) { hprintf("Enter %s\n", str); }
 
 /**
  * @brief      Creates a new wallet with the provided master-password.
  *
  */
 int ecall_create_wallet(const char* master_password) {
+	LogEnter(__func__);
 
 	//
 	// OVERVIEW:
@@ -104,6 +107,7 @@ int ecall_create_wallet(const char* master_password) {
  *
  */
 int ecall_show_wallet(const char* master_password, wallet_t* wallet, size_t wallet_size) {
+	LogEnter(__func__);
 
 	//
 	// OVERVIEW:
@@ -168,6 +172,7 @@ int ecall_show_wallet(const char* master_password, wallet_t* wallet, size_t wall
  *
  */
 int ecall_change_master_password(const char* old_password, const char* new_password) {
+	LogEnter(__func__);
 
 	//
 	// OVERVIEW:
@@ -263,6 +268,7 @@ int ecall_change_master_password(const char* old_password, const char* new_passw
  *
  */
 int ecall_add_item(const char* master_password, const item_t* item, const size_t item_size) {
+	LogEnter(__func__);
 
 	//
 	// OVERVIEW:
@@ -369,6 +375,7 @@ int ecall_add_item(const char* master_password, const item_t* item, const size_t
  *
  */
 int ecall_remove_item(const char* master_password, const int index) {
+	LogEnter(__func__);
 
 	//
 	// OVERVIEW:
