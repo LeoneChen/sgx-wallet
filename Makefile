@@ -120,8 +120,8 @@ Enclave_Include_Paths := -Ienclave -Iinclude -I$(SGX_SDK)/include -I$(SGX_SDK)/i
 Enclave_C_Flags := $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpie -fstack-protector $(Enclave_Include_Paths)
 Enclave_Cpp_Flags := $(Enclave_C_Flags) -std=c++03 -nostdinc++
 Enclave_Link_Flags := $(SGX_COMMON_CFLAGS) -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
-	-Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
-	-Wl,--start-group -lsgx_tstdc -lsgx_tstdcxx -l$(Crypto_Library_Name) -l$(Service_Library_Name) -Wl,--end-group \
+	-Wl,--whole-archive -lSGXSanRTEnclave -l$(Trts_Library_Name) -Wl,--no-whole-archive \
+	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -lsgx_pthread -l$(Crypto_Library_Name) -l$(Service_Library_Name) -Wl,--end-group \
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined \
 	-Wl,-pie,-eenclave_entry -Wl,--export-dynamic  \
 	-Wl,--defsym,__ImageBase=0
@@ -141,6 +141,49 @@ endif
 endif
 endif
 
+ifeq ($(KAFL_FUZZER), 1)
+App_Link_Flags += \
+	-ldl \
+	-Wl,-rpath=$(SGX_LIBRARY_PATH) \
+	-Wl,-whole-archive -lSGXSanRTApp -Wl,-no-whole-archive \
+	-lSGXFuzzerRT \
+	-lcrypto \
+	-lboost_program_options \
+	-rdynamic \
+	-lnyx_agent
+Enclave_C_Flags += \
+	-fno-discard-value-names \
+	-flegacy-pass-manager \
+	-Xclang -load -Xclang $(SGX_SDK)/lib64/libSGXSanPass.so
+Enclave_Cpp_Flags += \
+	-fno-discard-value-names \
+	-flegacy-pass-manager \
+	-Xclang -load -Xclang $(SGX_SDK)/lib64/libSGXSanPass.so
+else
+App_Cpp_Files += app/SGXFuzzerCB.cpp
+App_Link_Flags += \
+	-ldl \
+	-Wl,-rpath=$(SGX_LIBRARY_PATH) \
+	-Wl,-whole-archive -lSGXSanRTApp -Wl,-no-whole-archive \
+	-lSGXFuzzerRT \
+	-lcrypto \
+	-lboost_program_options \
+	-rdynamic
+Enclave_C_Flags += \
+	-fno-discard-value-names \
+	-flegacy-pass-manager \
+	-Xclang -load -Xclang $(SGX_SDK)/lib64/libSGXFuzzerPass.so \
+	-mllvm --at-enclave=true \
+	-flegacy-pass-manager \
+	-Xclang -load -Xclang $(SGX_SDK)/lib64/libSGXSanPass.so
+Enclave_Cpp_Flags += \
+	-fno-discard-value-names \
+	-flegacy-pass-manager \
+	-Xclang -load -Xclang $(SGX_SDK)/lib64/libSGXFuzzerPass.so \
+	-mllvm --at-enclave=true \
+	-flegacy-pass-manager \
+	-Xclang -load -Xclang $(SGX_SDK)/lib64/libSGXSanPass.so
+endif
 
 .PHONY: all run
 
@@ -165,14 +208,19 @@ endif
 ######## App Objects ########
 
 app/enclave_u.c: $(SGX_EDGER8R) enclave/enclave.edl
-	@cd app && $(SGX_EDGER8R) --untrusted ../enclave/enclave.edl --search-path ../enclave --search-path $(SGX_SDK)/include
+	@cd app && $(SGX_EDGER8R) --untrusted ../enclave/enclave.edl --search-path ../enclave --search-path $(SGX_SDK)/include --dump-parse ../Enclave.edl.json --include-path ../include
 	@echo "GEN  =>  $@"
 
+ifneq ($(KAFL_FUZZER), 1)
+app/enclave_u.o: $(Enclave_Name)
+endif
 app/enclave_u.o: app/enclave_u.c
-	@$(CC) $(App_C_Flags) -c $< -o $@
+	@$(CC) $(App_C_Flags) -c $< -o $@ \
+	-flegacy-pass-manager \
+	-Xclang -load -Xclang $(SGX_SDK)/lib64/libSGXFuzzerPass.so
 	@echo "CC   <=  $<"
 
-app/%.o: app/%.cpp
+app/%.o: app/%.cpp app/enclave_u.c
 	@$(CXX) $(App_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
 
@@ -191,7 +239,7 @@ enclave/enclave_t.o: enclave/enclave_t.c
 	@$(CC) $(Enclave_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-enclave/%.o: enclave/%.cpp
+enclave/%.o: enclave/%.cpp enclave/enclave_t.c
 	@$(CXX) $(Enclave_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
 

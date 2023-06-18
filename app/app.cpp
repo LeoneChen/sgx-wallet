@@ -89,7 +89,7 @@ int ocall_is_wallet(void) {
 /***************************************************
  * main
  ***************************************************/
-int main(int argc, char** argv) {
+int _hidden_main(int argc, char** argv) {
     // declare enclave & return variables
     sgx_enclave_id_t eid = 0;
     sgx_launch_token_t token = {0};
