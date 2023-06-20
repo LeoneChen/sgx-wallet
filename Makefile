@@ -74,6 +74,7 @@ else
 endif
 
 App_Cpp_Files := app/app.cpp app/utils.cpp app/test.cpp
+App_Cpp_Files += app/SGXFuzzerCB.cpp
 App_Include_Paths := -Iapp -I$(SGX_SDK)/include -Iinclude -Itest
 
 App_C_Flags := $(SGX_COMMON_CFLAGS) -fPIC -Wno-attributes $(App_Include_Paths)
@@ -90,7 +91,7 @@ else
 		App_C_Flags += -DNDEBUG -UEDEBUG -UDEBUG
 endif
 
-App_Cpp_Flags := $(App_C_Flags) -std=c++11
+App_Cpp_Flags := $(App_C_Flags) -std=c++17
 App_Link_Flags := $(SGX_COMMON_CFLAGS) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread
 
 ifneq ($(SGX_MODE), HW)
@@ -160,7 +161,6 @@ Enclave_Cpp_Flags += \
 	-flegacy-pass-manager \
 	-Xclang -load -Xclang $(SGX_SDK)/lib64/libSGXSanPass.so
 else
-App_Cpp_Files += app/SGXFuzzerCB.cpp
 App_Link_Flags += \
 	-ldl \
 	-Wl,-rpath=$(SGX_LIBRARY_PATH) \
