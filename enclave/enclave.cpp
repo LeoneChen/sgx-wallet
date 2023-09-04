@@ -1,3 +1,11 @@
+#if defined(__cplusplus)
+extern "C"{
+#endif
+void SGXSanLogEnter(const char *str);
+#if defined(__cplusplus)
+}
+#endif
+#define LogEnter SGXSanLogEnter
 /*
  * Copyright 2018 Alberto Sonnino
  *
@@ -31,6 +39,7 @@
  *
  */
 int ecall_create_wallet(const char* master_password) {
+    LogEnter(__func__);
 
 	//
 	// OVERVIEW:
@@ -104,6 +113,7 @@ int ecall_create_wallet(const char* master_password) {
  *
  */
 int ecall_show_wallet(const char* master_password, wallet_t* wallet, size_t wallet_size) {
+    LogEnter(__func__);
 
 	//
 	// OVERVIEW:
@@ -168,6 +178,7 @@ int ecall_show_wallet(const char* master_password, wallet_t* wallet, size_t wall
  *
  */
 int ecall_change_master_password(const char* old_password, const char* new_password) {
+    LogEnter(__func__);
 
 	//
 	// OVERVIEW:
@@ -263,6 +274,7 @@ int ecall_change_master_password(const char* old_password, const char* new_passw
  *
  */
 int ecall_add_item(const char* master_password, const item_t* item, const size_t item_size) {
+    LogEnter(__func__);
 
 	//
 	// OVERVIEW:
@@ -369,6 +381,7 @@ int ecall_add_item(const char* master_password, const item_t* item, const size_t
  *
  */
 int ecall_remove_item(const char* master_password, const int index) {
+    LogEnter(__func__);
 
 	//
 	// OVERVIEW:
