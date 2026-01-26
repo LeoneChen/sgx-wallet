@@ -35,6 +35,8 @@
 #define ERR_ITEM_TOO_LONG 8
 #define ERR_FAIL_SEAL 9
 #define ERR_FAIL_UNSEAL 10
+#define ERR_INVALID_PARAMETER 11
+#define ERR_FAIL_ALLOC 12
 
 
 #endif // ENCLAVE_H_
