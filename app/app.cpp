@@ -25,13 +25,14 @@
 
 #include "app.h"
 #include "utils.h"
-#include "ocalls.h"
 #include "debug.h"
 #include "wallet.h"
 #include "enclave.h"
 #include "test.h"
+#include <filesystem>
 
 using namespace std;
+namespace fs = std::filesystem;
 
 
 /***************************************************
@@ -89,7 +90,7 @@ int ocall_is_wallet(void) {
 /***************************************************
  * main
  ***************************************************/
-int main(int argc, char** argv) {
+int no_main(int argc, char** argv) {
     // declare enclave & return variables
     sgx_enclave_id_t eid = 0;
     sgx_launch_token_t token = {0};
@@ -315,4 +316,15 @@ int main(int argc, char** argv) {
     ////////////////////////////////////////////////
     info_print("Program exit success.");
     return 0;
+}
+
+
+extern "C" int SGXFuzzerEnvClearBeforeTest() {
+  // rm wallet.seal
+  std::error_code ec;
+  fs::remove(fs::path(WALLET_FILE), ec);
+  if (ec) {
+    return -1;
+  }
+  return 0;
 }
