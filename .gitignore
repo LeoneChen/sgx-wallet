@@ -53,3 +53,6 @@ dkms.conf
 
 # Apple .DS_Store files
 .DS_Store
+
+enclave_[ut].[ch]
+sgx-wallet

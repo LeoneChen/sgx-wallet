@@ -75,6 +75,8 @@ endif
 
 App_Cpp_Files := app/app.cpp app/utils.cpp app/test.cpp
 App_Include_Paths := -Iapp -I$(SGX_SDK)/include -Iinclude -Itest
+App_Cpp_Files += app/harness.cpp
+App_Include_Paths += -I$(SGX_SDK)/../llvm-project/lib/clang/13.0.1/include/fuzzer
 
 App_C_Flags := $(SGX_COMMON_CFLAGS) -fPIC -Wno-attributes $(App_Include_Paths)
 
@@ -91,7 +93,7 @@ else
 endif
 
 App_Cpp_Flags := $(App_C_Flags) -std=c++11
-App_Link_Flags := $(SGX_COMMON_CFLAGS) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread
+App_Link_Flags := $(SGX_COMMON_CFLAGS) -L$(SGX_LIBRARY_PATH) -Wl,-rpath-link,$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread
 
 ifneq ($(SGX_MODE), HW)
 	App_Link_Flags += -lsgx_uae_service_sim
@@ -120,8 +122,8 @@ Enclave_Include_Paths := -Ienclave -Iinclude -I$(SGX_SDK)/include -I$(SGX_SDK)/i
 Enclave_C_Flags := $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpie -fstack-protector $(Enclave_Include_Paths)
 Enclave_Cpp_Flags := $(Enclave_C_Flags) -std=c++03 -nostdinc++
 Enclave_Link_Flags := $(SGX_COMMON_CFLAGS) -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
-	-Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
-	-Wl,--start-group -lsgx_tstdc -lsgx_tstdcxx -l$(Crypto_Library_Name) -l$(Service_Library_Name) -Wl,--end-group \
+	-Wl,--whole-archive -lSGXSanRTEnclave -l$(Trts_Library_Name) -Wl,--no-whole-archive \
+	-Wl,--start-group -lsgx_tstdc -lsgx_tstdcxx -lsgx_pthread -l$(Crypto_Library_Name) -l$(Service_Library_Name) -Wl,--end-group \
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined \
 	-Wl,-pie,-eenclave_entry -Wl,--export-dynamic  \
 	-Wl,--defsym,__ImageBase=0
@@ -141,6 +143,9 @@ endif
 endif
 endif
 
+App_Link_Flags += -ldl -Wl,-whole-archive -lSGXSanRTApp -Wl,-no-whole-archive -L$(SGX_SDK)/../llvm-project/lib/clang/13.0.1/lib/linux -lclang_rt.fuzzer-x86_64
+Enclave_C_Flags += -fsanitize=address -mllvm -asan-enclave -mllvm -asan-use-after-return=never -fsanitize-coverage=inline-8bit-counters,pc-table
+Enclave_Cpp_Flags += -fsanitize=address -mllvm -asan-enclave -mllvm -asan-use-after-return=never -fsanitize-coverage=inline-8bit-counters,pc-table
 
 .PHONY: all run
 
@@ -172,12 +177,12 @@ app/enclave_u.o: app/enclave_u.c
 	@$(CC) $(App_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-app/%.o: app/%.cpp
+app/%.o: app/%.cpp app/enclave_u.c
 	@$(CXX) $(App_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
 
 $(App_Name): app/enclave_u.o $(App_Cpp_Objects)
-	@$(CXX) $^ -o $@ $(App_Link_Flags)
+	$(CXX) $^ -o $@ $(App_Link_Flags)
 	@echo "LINK =>  $@"
 
 
@@ -191,7 +196,7 @@ enclave/enclave_t.o: enclave/enclave_t.c
 	@$(CC) $(Enclave_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-enclave/%.o: enclave/%.cpp
+enclave/%.o: enclave/%.cpp enclave/enclave_t.c
 	@$(CXX) $(Enclave_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
 

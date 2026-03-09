@@ -25,7 +25,7 @@
 
 #include "app.h"
 #include "utils.h"
-#include "ocalls.h"
+// #include "ocalls.h"
 #include "debug.h"
 #include "wallet.h"
 #include "enclave.h"
@@ -33,6 +33,13 @@
 
 using namespace std;
 
+extern "C" int SGXFuzzerEnvClearBeforeTest() {
+  // rm wallet.seal
+  if (std::remove(WALLET_FILE) != 0) {
+    return -1;
+  }
+  return 0;
+}
 
 /***************************************************
  * OCALLs implementation
@@ -89,7 +96,7 @@ int ocall_is_wallet(void) {
 /***************************************************
  * main
  ***************************************************/
-int main(int argc, char** argv) {
+int no_main(int argc, char** argv) {
     // declare enclave & return variables
     sgx_enclave_id_t eid = 0;
     sgx_launch_token_t token = {0};
